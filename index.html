@@ -1,0 +1,582 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1, minimum-scale=1, maximum-scale=1">
+    <link rel="stylesheet" href="css/swiper.min.css">
+    <link rel="stylesheet" href="css/jbox.css">
+    <link rel="stylesheet" href="css/jBox.Notice.css">
+  <style>
+    html, body {
+      position: relative;
+      height: 100%;
+    }
+    body {
+      background: #eee;
+      font-family: Helvetica Neue, Helvetica, Arial, sans-serif;
+      font-size: 14px;
+      color:#000;
+      margin: 0;
+      padding: 0;
+    }
+    ol, ul {
+        list-style: none;
+    }    
+    .swiper-container {
+        margin: 0 auto;
+        position: relative;
+        overflow: hidden;
+        list-style: none;
+        padding: 0;
+        z-index: 1;
+        width: 100%;
+    }    
+    .swiper-slide {
+        text-align: center;
+        font-size: 18px;
+        position: relative;
+     }
+     
+    .browser {
+        width: 100%;
+        position: fixed;
+        bottom: 0;
+        z-index: 10;
+        overflow-x: auto;
+        background-color: gray;
+    }
+     
+    .browser-item {
+        display: table-cell;
+        border-top: solid 3px gray;
+        border-left: solid 3px gray;
+        border-right: solid 3px gray;
+        position: relative;
+    }
+    .browser-item> img {
+        height: 20vw;
+    }
+    .swiper-container .swiper-slide img {
+        width: 100%;
+    }     
+    .mask {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 100%;        
+    }
+    .mask.selected {
+        position: absolute;
+        top: 0;
+        height: 100%;
+        width: 100%;        
+        background-color: rgba(200, 200, 10, 0.5);
+    }
+    .mask span {
+        position: absolute;
+        bottom: 3px;
+        right: 10px;
+        font-size: 10px;        
+    }
+    .public {
+        cursor: pointer;
+        position: absolute;
+        border-radius: 3px;
+        border: 1px solid #48d156;
+    }    
+    .public.focused {
+        background-color: rgba(160, 50, 100, 0.5);
+    }
+    .range {
+        border: 1px solid red;
+    }
+
+    .chinese {
+        position: absolute;
+        bottom: 18vw;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 70%;
+        padding: 0 10px;
+        line-height: 28px;
+        text-align: center;
+        border-radius: 3px;
+        z-index: 100;        
+    }
+    .chinese.showed {
+        background-color: rgba(100, 100, 100, 0.8);
+        color: #fff;
+    }
+    
+    .toolbar-button {
+        width:70px;
+        padding:5px;
+    }
+    .toolbar {
+    }
+    .menu-part {
+        z-index: 200;
+        background-color: white;
+        position: absolute;
+        top: 0;
+        width: 100%;
+        height: 100%;
+        display: none;
+    }
+    .menu-part > ul {
+         background-color: white;
+    }
+    .lesson-item {
+        z-index: 300;
+        line-height: 10vw;
+        border-bottom: 1px solid rgb(230,230,230);        
+    }
+    .lesson-item.selected {
+        color: red;
+    }
+    .lesson-unit {
+        font-weight: bold;
+    }
+    .lesson-name {
+        padding-left: 10vw;
+    }
+  </style>    
+</head>
+<body>
+    <div class="toolbar">
+        <button id="bookMenu" class="toolbar-button" style="width:50px;">目录</button>
+        <button id="readStatus" class="toolbar-button">点读</button>
+        <button id="playStatus" class="toolbar-button">开始</button>
+        <button id="setRange" class="toolbar-button">设置范围</button>
+        <button id="removeRange" class="toolbar-button">清除范围</button>
+    </div>
+    <div class="swiper-container">
+        <div class="swiper-wrapper">
+        </div>
+    </div>
+    <div class="chinese" ></div>
+    <div class="browser">
+    </div>
+    <div class="menu-part">
+        <ul class="lesson-group">
+        </ul>        
+    </div>
+    
+    <audio id="audio"></audio>
+</body>
+<script src="lib/jquery-3.3.1.min.js"></script>
+<script src="lib/jquery.scrollintoview.min.js"></script>
+<script src="lib/jBox.js"></script>
+<script src="lib/jBox.Notice.js"></script>
+<script src="lib/swiper.min.js"></script>
+<script src="bookData.js"></script>
+<script>
+$(document).ready(function() {
+    var audioStopTime;
+    var currentLesson;
+    var currentPage;
+    var currentSentence;
+    var isReadContinue = false;
+    var isSettingRange = false;//是否正在设置范围
+    var range;
+    
+    var playStatus = 0;
+    
+    var lessons = bookData.lessons;
+    var pages = [];
+    var sentences = [];
+    
+    var audio = document.getElementById("audio");
+    audio.addEventListener('timeupdate', function (){
+        if(currentSentence && audio.currentTime >= currentSentence.endTime) {
+            playSentenceEnd(currentSentence);
+        }
+    }, false);        
+
+    //android webview 中关闭程序时没调用，暂关闭
+//    window.onbeforeunload = function(){
+//        if(window.localStorage && currentPage) {
+//            window.localStorage.setItem("storePage",currentPage.pageIndex)
+//        }
+//    };
+    
+    var swiper = new Swiper('.swiper-container', {
+        slidesPerView: 1,
+        lazy: true,
+//        effect: 'cube',
+//        grabCursor: true,
+//        cubeEffect: {
+//            shadow: true,
+//            slideShadows: true,
+//            shadowOffset: 20,
+//            shadowScale: 0.94,
+//        },        
+        on: {
+            init: function() {
+            },
+            slideChange: function() {
+                if(range) {
+                    
+                } else {
+                    stopCurretSentence();
+                }
+                moveToPage(pages[swiper.activeIndex]);
+            }
+        }
+    });    
+    
+    lessons.sort(function(a,b) {
+        return a.pages[0].pageNo - b.pages[0].pageNo;
+    })
+    for(let i=0;i<lessons.length;i++) {
+        buildLesson(lessons[i]);
+    }
+    
+    for(let i=0;i<pages.length;i++) {
+        let thePage = pages[i];
+        thePage.pageIndex = i;
+        thePage.sentences.sort(function(a,b) {
+            return a.beginTime - b.beginTime;
+        });
+        for(let j=0;j<thePage.sentences.length;j++) {
+            thePage.sentences[j].page = thePage;
+            sentences.push(thePage.sentences[j]);
+        }
+        buildPage(thePage);
+    }
+    if(sentences){
+        sentences.sort(function(a,b) {
+            if(a.page.lesson === b.page.lesson) {
+                return a.beginTime - b.beginTime;
+            } else {
+                return a.page.lesson.lessonIndex - b.page.lessonIndex;
+            }
+        });
+        for(let i=0;i<sentences.length - 1;i++) {
+            sentences[i].sentenceIndex = i;
+            sentences[i].nextSentence = sentences[i + 1];
+        }
+    }
+
+    function buildLesson(lesson) {
+        for(let i=0;i<lesson.pages.length;i++) {
+            var thePage = lesson.pages[i];
+            pages.push(thePage);
+            thePage.lesson = lesson;
+        }
+        var unitName = lesson.unitName || "";
+        var lessonName = lesson.lessonName || "";
+        let jMenuDiv = $('<li class="lesson-item"><div class="lesson-unit">' + unitName + '</div><div class="lesson-name">' + lessonName + '</div></li>');
+        $(".lesson-group").append(jMenuDiv);
+        lesson._jMenuDiv = jMenuDiv;
+        jMenuDiv.click(function() {
+            if(currentLesson != lesson) {
+                let page = lesson.pages[0];
+                moveToPage(page);
+                selectLesson(lesson);
+            }
+            $(".menu-part").hide();
+        });
+    }
+    
+    function buildPage(page) {
+        let jPageDiv = $('<div class="swiper-slide"><img src="' + page.imageUrl + '"></div>');
+        if(page.sentences){
+            jPageDiv.find("img").one("load", function() {
+                for(let j=0;j<page.sentences.length;j++) {
+                    buildSentence(page.sentences[j],jPageDiv,this.naturalWidth);
+                }
+            });
+        }
+        swiper.appendSlide(jPageDiv.get(0));
+        let jPageDiv2 = $('<div class="browser-item"><img src="' + page.imageUrl + '"><div class="mask"><span>' + page.pageNo + '</span></div></div>');
+        page._jPageDiv2 = jPageDiv2;
+        $(".browser").append(jPageDiv2);
+        jPageDiv2.click(function() {
+            audio.load();
+            playSentenceEnd(currentSentence);
+            moveToPage(page);
+        });
+    }
+    
+    function buildSentence(sentence,jPageDiv,imageNaturalWidth) {
+        let proportionW = imageNaturalWidth / window.screen.width;
+        let X = (sentence.endX - sentence.startX) / proportionW + "px"; 
+        let Y = (sentence.endY - sentence.startY) / proportionW + "px";
+        let left = (sentence.startX) / proportionW + "px";
+        let top = (sentence.startY) /  proportionW + "px";
+        let styles = ["width:",X,";height:",Y,";left:",left,";top:",top];
+        let jSentenceDiv = $('<div class="public" style="' + styles.join("") + '" id="' + sentence.sentenceId + '"></div>')
+        jPageDiv.append(jSentenceDiv);
+        jSentenceDiv.click(function() {
+            if(range) {
+                if(range.length < 2) {
+                    range.push(sentence);
+                    $("#" + sentence.sentenceId).addClass("range");
+                    if(range.length >= 2) {
+                        if(range[1].sentenceIndex < range[0].sentenceIndex) {//排序句子范围
+                            range.reverse();
+                        }
+                        for(let i=range[0].sentenceIndex;i<range[1].sentenceIndex;i++) {
+                            $("#" + sentences[i].sentenceId).addClass("range");
+                        }
+
+                        playSentence(range[0]);
+                    }
+                } else {//检查点击的句子在范围里
+                    if(sentence.sentenceIndex >= range[0].sentenceIndex && sentence.sentenceIndex <= range[1].sentenceIndex) {
+                        playSentence(sentence);
+                    } else {
+                        //tip: 点击范围外句子，清除范围
+                        new jBox('Notice', {
+                            content: '有阅读范围，点击范围外句子，清除范围',
+                            color: 'black',
+                            autoClose : 2000,
+                            position: {
+                              x: 'center',
+                              y: 50,
+                            },
+                        });
+                        removeRange();
+                    }
+                }
+            } else {
+                playSentence(sentence);
+            }
+        });
+    }
+    
+    function playSentence(sentence) {
+        if(currentSentence && currentSentence !== sentence) {
+            stopCurretSentence();
+        } else if(currentSentence === sentence) {
+            if(playStatus === 1) {//已暂停，继续播放
+                audio.play();
+                return;
+            }
+        }
+        if(pages[swiper.activeIndex] !== sentence.page) {
+            moveToPage(sentence.page);
+        }
+        currentSentence = sentence;
+        audio.src = sentence.audioUrl;
+        audio.currentTime = sentence.beginTime;
+        audioStopTime = sentence.endTime;
+        audio.play();
+        
+        changePlayStatus(2);
+        // show chinese
+        $("#" + sentence.sentenceId).addClass("focused");
+        displayChinese(sentence.displayCn);
+    }
+    
+    function playSentenceEnd(sentence) {
+        if(!sentence) {
+            return;
+        }
+        $("#" + sentence.sentenceId).removeClass("focused");
+        
+        if(range && range.length >= 2) {
+            if(isReadContinue) {
+                if(sentence === range[1]) {
+                    playSentence(range[0]);
+                } else if(sentence.nextSentence) {
+                    playSentence(sentence.nextSentence);
+                }
+            } else {
+                if(sentence === range[1]) {
+                    stopCurretSentence();
+                    currentSentence = range[0];
+                } else {
+                    if(sentence.nextSentence) {
+                        playSentence(sentence.nextSentence);
+                    }
+                }
+            }
+        } else {
+            if(isReadContinue) {
+                if(sentence.nextSentence) {
+                    playSentence(sentence.nextSentence);
+                }
+            } else {
+                stopCurretSentence();
+            }
+        }
+    }
+    
+    function moveToPage(page) {
+        if(currentPage && currentPage != page) {
+            currentPage._jPageDiv2.find(".mask").removeClass("selected");
+        }
+        if(currentPage != page) {
+            swiper.slideTo(page.pageIndex, 200, true);
+            page._jPageDiv2.scrollintoview();
+            page._jPageDiv2.find(".mask").addClass("selected");
+        }
+        currentPage = page;
+        selectLesson(page.lesson);
+    }
+    
+    function pauseCurrnetSentence() {
+        if(!currentSentence) {
+            return;
+        }
+        audio.pause();
+    }
+    
+    function stopCurretSentence() {
+        if(!currentSentence) {
+            return;
+        }
+        
+        $("#" + currentSentence.sentenceId).removeClass("focused");
+        audio.load();   
+        hideChinese();
+        changePlayStatus(0);
+        if(window.localStorage && currentSentence.page === currentPage) {
+            window.localStorage.setItem("bookStorePage",currentPage.pageIndex);
+        }
+    }
+    
+    function displayChinese(text) {
+        if(text) {
+            $(".chinese").text(text);
+            $(".chinese").addClass("showed");
+        }
+    }
+    
+    function hideChinese() {
+        $(".chinese").text("");
+        $(".chinese").removeClass("showed");
+    }
+    
+    $("#readStatus").click(function() {
+        isReadContinue = !isReadContinue;
+        changeReadStatus();
+        
+    })
+    
+    function changeReadStatus() {
+        if(isReadContinue) {
+            $("#readStatus").text("连续读");
+        } else {
+            $("#readStatus").text("点读");
+        }
+    }
+
+    $("#playStatus").click(function() {
+        if(playStatus === 2) {//暂停
+            pauseCurrnetSentence();
+            changePlayStatus(1);
+        } else if(playStatus === 1) {//播放
+            playSentence(currentSentence);
+            changePlayStatus(2);
+        } else if(playStatus === 0) {//开始  从当前页第一个句子开始读
+            if(currentSentence) {
+                playSentence(currentSentence);
+            } else {
+                var pageIndex = swiper.activeIndex;
+                if(pageIndex >= 0 && pageIndex < pages.length) {
+                    var sentences = pages[pageIndex].sentences;
+                    if(sentences && sentences.length > 0) {
+                        playSentence(sentences[0]);
+                    }
+                }
+            }
+        }
+    })
+
+    function changePlayStatus(currentPlayStatus) {
+        playStatus = currentPlayStatus;
+        if(playStatus === 0) {
+            $("#playStatus").text("开始");
+        } else if(playStatus === 1) {
+            $("#playStatus").text("播放");
+        } else if(playStatus === 2) {
+            $("#playStatus").text("暂停");
+        } else {//3
+            $("#playStatus").text("结束");
+        }
+    }
+    
+    $("#setRange").click(function() {
+        //tip:设置阅读范围，点击句子设定起止点
+        new jBox('Notice', {
+            content: '设置阅读范围，分别点击2个句子设定阅读起止点',
+            color: 'black',
+            autoClose : 1500,
+            position: {
+              x: 'center',
+              y: 50,
+            },
+        });
+        clearRange();
+        range = [];
+        stopCurretSentence();
+        
+    });
+    $("#removeRange").click(function() {
+        removeRange();
+    });
+    $("#bookMenu").click(function() {
+        $(".menu-part").show();
+        if(currentLesson) {
+            currentLesson._jMenuDiv.scrollintoview();
+        }
+    });
+    
+    
+    function selectLesson(lesson) {
+        if(currentLesson && currentLesson !== lesson) {
+            currentLesson._jMenuDiv.removeClass("selected");
+        }
+        if(currentLesson != lesson) {
+            currentLesson = lesson;
+            currentLesson._jMenuDiv.addClass("selected");
+        }
+    }
+    
+    
+    function removeRange() {
+        clearRange();
+        range = null;
+        stopCurretSentence();
+    }
+    
+    function clearRange() {
+        if(range) {
+            if(range.length >= 2) {
+                for(let i=range[0].sentenceIndex;i<=range[1].sentenceIndex;i++) {
+                    $("#" + sentences[i].sentenceId).removeClass("range");
+                }
+            } else {
+                for(let i=0;i<range.length;i++) {
+                    $("#" + range[i].sentenceId).removeClass("range");
+                }
+            }
+        }
+        range = null;
+    }
+    
+    changeReadStatus();
+    
+    function init() {
+        if(window.localStorage) {
+//            alert("init page:" + 10)
+            var lastPageIndex = window.localStorage.getItem("bookStorePage");
+//            alert("last page:" + lastPageIndex)
+            if(lastPageIndex && lastPageIndex > 0 && lastPageIndex < pages.length) {
+                setTimeout(function(){
+                    moveToPage(pages[lastPageIndex]);
+                },300)//等待图片加载完成执行，否则browser div宽度为空，不可定位
+                return;
+            }
+        }
+        moveToPage(pages[0]);
+    }
+    init();
+    
+});    
+
+</script>
+</html>
